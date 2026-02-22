@@ -15,6 +15,7 @@ A demo project for practicing structured software development workflows using Gi
 | Runtime | Node.js 20 LTS |
 | Language | TypeScript 5 |
 | Framework | Express 4 |
+| Logging | Morgan |
 | Testing | Jest + Supertest |
 | Linting | ESLint + Prettier |
 | CI/CD | GitHub Actions |

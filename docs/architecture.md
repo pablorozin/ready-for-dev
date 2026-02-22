@@ -11,6 +11,7 @@ The ready-for-dev project is a Node.js + TypeScript + Express application design
 | Runtime | Node.js | 18+ | JavaScript runtime environment |
 | Language | TypeScript | ^5.0.0 | Type-safe JavaScript development |
 | Framework | Express | ^4.18.2 | Web application framework |
+| Logging | Morgan | ^1.10.1 | HTTP request logging middleware |
 | Testing | Jest + Supertest | ^29.5.0 | Unit and integration testing |
 | Build Tool | TypeScript Compiler | ^5.0.0 | Compilation to JavaScript |
 
@@ -83,12 +84,40 @@ ready-for-dev/
 - HTTP 200 status on success
 - Suitable for load balancer health checks
 
+### Request Logging Middleware
+
+**Pattern**: HTTP request logging with Morgan
+
+```typescript
+// Conditional logging based on environment
+if (process.env.NODE_ENV !== 'test') {
+  app.use(morgan(':method :url :status :response-time ms'));
+}
+```
+
+**Implementation Details**:
+- Morgan middleware for HTTP request logging
+- Format: `METHOD /path STATUS time_ms` (e.g., "GET /health 200 1.428 ms")
+- Environment detection prevents logging during tests
+- Placed before route handlers to capture all requests
+- Uses default output stream (stdout)
+
+**Design Decisions**:
+- Morgan chosen for industry-standard HTTP logging
+- Custom format provides essential request information
+- Conditional loading prevents test output pollution
+- Middleware order: logging → JSON parsing → routes
+
 ### Express Application Setup
 
-**Pattern**: Minimal Express configuration
+**Pattern**: Express configuration with request logging
 
 ```typescript
 const app = express();
+// Conditional request logging (disabled during tests)
+if (process.env.NODE_ENV !== 'test') {
+  app.use(morgan(':method :url :status :response-time ms'));
+}
 app.use(express.json());           // JSON parsing middleware
 app.use('/health', healthRouter);   // Route mounting
 app.listen(PORT, callback);         // Server startup
@@ -96,6 +125,8 @@ app.listen(PORT, callback);         // Server startup
 
 **Design Decisions**:
 - Port 3000 for development (configurable via environment)
+- Morgan middleware for HTTP request logging with custom format
+- Environment-based conditional middleware loading
 - JSON middleware for API-first approach
 - Modular router mounting for scalability
 - Export app for testing
@@ -165,8 +196,35 @@ const response = await request(app).get('/health');
 - Fast test execution
 - Full HTTP behavior verification
 
+### Middleware Testing Pattern
+
+```typescript
+// Pattern: Behavioral testing for stdout-affecting middleware
+const logOutputs: string[] = [];
+const logStream = new Writable({
+  write(chunk, _encoding, callback) {
+    logOutputs.push(chunk.toString());
+    callback();
+  }
+});
+
+const testApp = express();
+testApp.use(morgan(':method :url :status :response-time ms', { stream: logStream }));
+testApp.use('/health', healthRouter);
+
+await request(testApp).get('/health');
+expect(logOutputs[0]).toMatch(/^GET \/health 200 \d+(\.\d+)? ms$/);
+```
+
+**Benefits**:
+- Tests middleware behavior without affecting test output
+- Verifies actual log format and content
+- Uses isolated Express app for middleware testing
+- Captures middleware side effects for assertion
+
 ### Coverage Strategy
 - Routes: HTTP behavior and response format
+- Middleware: Behavioral testing with output capture
 - Services: Business logic (future)
 - Integration: End-to-end API behavior (future)
 
